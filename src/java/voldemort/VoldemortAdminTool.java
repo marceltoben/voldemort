@@ -1,12 +1,12 @@
 /*
  * Copyright 2008-2010 LinkedIn, Inc
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
- *
+ * 
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
@@ -49,6 +49,7 @@ import voldemort.serialization.DefaultSerializerFactory;
 import voldemort.serialization.Serializer;
 import voldemort.serialization.SerializerFactory;
 import voldemort.store.StoreDefinition;
+import voldemort.store.compress.GzipCompressionStrategy;
 import voldemort.utils.ByteArray;
 import voldemort.utils.ByteUtils;
 import voldemort.utils.CmdUtils;
@@ -262,7 +263,7 @@ public class VoldemortAdminTool {
                                           String metadataKey) {
         Versioned<String> versioned = adminClient.getRemoteMetadata(nodeId, metadataKey);
         if(versioned == null) {
-            System.out.println("null");
+            System.out.println("executeGetMetadata: null");
         } else {
             System.out.println(versioned.getVersion());
             System.out.print(": ");
@@ -431,9 +432,14 @@ public class VoldemortAdminTool {
                     int length = dis.readInt();
                     byte[] keyBytes = new byte[length];
                     ByteUtils.read(dis, keyBytes);
+
+                    // System.out.println("K: " + new String(keyBytes,
+                    // "UTF-8"));
+
                     length = dis.readInt();
                     byte[] versionBytes = new byte[length];
                     ByteUtils.read(dis, versionBytes);
+
                     length = dis.readInt();
                     byte[] valueBytes = new byte[length];
                     ByteUtils.read(dis, valueBytes);
@@ -466,11 +472,14 @@ public class VoldemortAdminTool {
                                           File outputFile,
                                           StoreDefinition storeDefinition) throws IOException {
         BufferedWriter writer = null;
+
+        GzipCompressionStrategy strategy = new GzipCompressionStrategy();
         if(outputFile != null) {
             writer = new BufferedWriter(new FileWriter(outputFile));
         } else {
             writer = new BufferedWriter(new OutputStreamWriter(System.out));
         }
+
         SerializerFactory serializerFactory = new DefaultSerializerFactory();
         StringWriter stringWriter = new StringWriter();
         JsonGenerator generator = new JsonFactory(new ObjectMapper()).createJsonGenerator(stringWriter);
@@ -486,6 +495,8 @@ public class VoldemortAdminTool {
                 byte[] keyBytes = kvPair.getFirst().get();
                 VectorClock version = (VectorClock) kvPair.getSecond().getVersion();
                 byte[] valueBytes = kvPair.getSecond().getValue();
+
+                valueBytes = strategy.inflate(valueBytes);
 
                 Object keyObject = keySerializer.toObject(keyBytes);
                 Object valueObject = valueSerializer.toObject(valueBytes);
@@ -510,6 +521,9 @@ public class VoldemortAdminTool {
 
     private static void writeEntriesBinary(Iterator<Pair<ByteArray, Versioned<byte[]>>> iterator,
                                            File outputFile) throws IOException {
+
+        GzipCompressionStrategy strategy = new GzipCompressionStrategy();
+
         DataOutputStream dos = null;
         if(outputFile != null) {
             dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(outputFile)));
@@ -522,11 +536,14 @@ public class VoldemortAdminTool {
                 byte[] keyBytes = kvPair.getFirst().get();
                 byte[] versionBytes = ((VectorClock) kvPair.getSecond().getVersion()).toBytes();
                 byte[] valueBytes = kvPair.getSecond().getValue();
+
+                valueBytes = strategy.inflate(valueBytes);
+
                 dos.writeInt(keyBytes.length);
                 dos.write(keyBytes);
                 dos.writeInt(versionBytes.length);
                 dos.write(versionBytes);
-                dos.write(valueBytes.length);
+                dos.writeInt(valueBytes.length);
                 dos.write(valueBytes);
             }
         } finally {
