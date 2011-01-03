@@ -496,7 +496,7 @@ public class VoldemortAdminTool {
                 VectorClock version = (VectorClock) kvPair.getSecond().getVersion();
                 byte[] valueBytes = kvPair.getSecond().getValue();
 
-                valueBytes = strategy.inflate(valueBytes);
+                //valueBytes = strategy.inflate(valueBytes);
 
                 Object keyObject = keySerializer.toObject(keyBytes);
                 Object valueObject = valueSerializer.toObject(valueBytes);
